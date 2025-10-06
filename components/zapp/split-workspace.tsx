@@ -2,15 +2,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import {
-  Eye,
-  Code2,
-  LoaderCircle,
-  FolderOpen,
-  MessageSquare,
-  Wifi, // Added from your old code
-  Signal, // Added from your old code
-} from "lucide-react";
+import { Eye, Code as Code2, LoaderCircle, FolderOpen, MessageSquare, Wifi, Signal } from "lucide-react";
 import { PanelGroup, Panel, PanelResizeHandle } from "react-resizable-panels";
 import { cn } from "@/lib/utils";
 import { ChatBubble } from "./components";
