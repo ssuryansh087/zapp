@@ -39,6 +39,11 @@ type Props = {
   prompt: string;
   stack: Stack;
   images: string[];
+  currentProjectId?: string | null;
+  onProjectIdChange?: (id: string) => void;
+  initialVirtualFilesystem?: VirtualFilesystem | null;
+  initialActiveFile?: string | null;
+  initialActiveFilePreviewCode?: string | null;
 };
 
 // This is the exact PhoneStatusBar from your old implementation
@@ -66,19 +71,32 @@ export default function SplitWorkspace({
   prompt,
   stack,
   images,
+  currentProjectId,
+  onProjectIdChange,
+  initialVirtualFilesystem,
+  initialActiveFile,
+  initialActiveFilePreviewCode,
 }: Props) {
   const [mode, setMode] = useState<"code" | "preview">("preview");
   const [virtualFilesystem, setVirtualFilesystem] =
-    useState<VirtualFilesystem | null>(null);
-  const [activeFile, setActiveFile] = useState<string | null>(null);
+    useState<VirtualFilesystem | null>(initialVirtualFilesystem || null);
+  const [activeFile, setActiveFile] = useState<string | null>(initialActiveFile || null);
   const [activeFilePreviewCode, setActiveFilePreviewCode] = useState<
     string | null
-  >(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  >(initialActiveFilePreviewCode || null);
+  const [loading, setLoading] = useState<boolean>(!initialVirtualFilesystem);
   const [messages, setMessages] = useState<Message[]>([]);
 
-  // All your state management and API logic remains the same
   useEffect(() => {
+    if (initialVirtualFilesystem) {
+      setVirtualFilesystem(initialVirtualFilesystem);
+      setActiveFile(initialActiveFile || null);
+      setActiveFilePreviewCode(initialActiveFilePreviewCode || null);
+      setMessages([{ role: "user", text: prompt }]);
+      setLoading(false);
+      return;
+    }
+
     let ignore = false;
     async function runInitialGeneration() {
       setLoading(true);
@@ -108,6 +126,22 @@ export default function SplitWorkspace({
               text: "I've created your project structure. What's next?",
             },
           ]);
+
+          if (!currentProjectId && onProjectIdChange) {
+            const { createProject } = await import("@/lib/supabase/projects");
+            const { user } = await import("@/lib/supabase/client").then(m => m.supabase.auth.getUser());
+            if (user.data.user) {
+              const project = await createProject(user.data.user.id, {
+                name: prompt.slice(0, 50) || "Untitled Project",
+                prompt,
+                stack,
+                virtual_filesystem: data.virtualFilesystem,
+                active_file: data.activeFile,
+                active_file_preview_code: data.activeFilePreviewCode,
+              });
+              onProjectIdChange(project.id);
+            }
+          }
         }
       } catch (e: any) {
         setMessages((prev) => [
@@ -122,7 +156,7 @@ export default function SplitWorkspace({
     return () => {
       ignore = true;
     };
-  }, [prompt, stack, images]);
+  }, [prompt, stack, images, initialVirtualFilesystem]);
 
   const handleIterativeChange = async (payload: ComposerPayload) => {
     const { message: changePrompt, images: changeImages } = payload;
@@ -163,6 +197,15 @@ export default function SplitWorkspace({
         ...prev,
         { role: "assistant", text: "Here are the changes." },
       ]);
+
+      if (currentProjectId) {
+        const { updateProject } = await import("@/lib/supabase/projects");
+        await updateProject(currentProjectId, {
+          virtual_filesystem: data.virtualFilesystem,
+          active_file: data.activeFile,
+          active_file_preview_code: data.activeFilePreviewCode,
+        });
+      }
     } catch (e: any) {
       setMessages((prev) => [
         ...prev,
